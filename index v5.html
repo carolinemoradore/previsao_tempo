@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Cadastro de Localidades & Previsão do Tempo</title>
+
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+  <style>
+    h1, h2, h3, h4, h5, h6 { color: #003352 !important; }
+
+    .weather-icon { height: 24px; }
+    tbody tr, tbody button { cursor: pointer; }
+    .forecast-row {
+      display: flex;
+      overflow-x: auto;
+      gap: 0.5rem;
+      padding-bottom: 0.5rem;
+    }
+    .forecast-card {
+      min-width: 120px;
+      flex: 0 0 auto;
+    }
+  </style>
+</head>
+<body class="bg-light">
+<div class="container">
+
+  <header class="position-relative d-flex justify-content-between align-items-center my-3">
+    <div class="d-flex align-items-center gap-3">
+      <img src="logo-comber.jpeg" alt="Logo Comber" style="height: 150px;">
+    </div>
+
+    <!-- Texto centralizado -->
+    <span style="
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 40px;
+      font-weight: 600;
+      color: #003352 !important;
+    ">
+      Cadastro de Localidades
+    </span>
+
+    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#cadastroModal">
+      + Nova localidade
+    </button>
+  </header>
+
+
+  <!-- Modal -->
+  <div class="modal fade" id="cadastroModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg"><div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Cadastrar localidade</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <form id="locationForm" class="row g-3">
+          <div class="col-md-6"><input id="name" class="form-control" placeholder="Nome" required></div>
+          <div class="col-md-3"><input id="latitude" class="form-control" placeholder="Latitude" type="number" step="any" required></div>
+          <div class="col-md-3"><input id="longitude" class="form-control" placeholder="Longitude" type="number" step="any" required></div>
+          <div class="col-12"><input id="description" class="form-control" placeholder="Descrição"></div>
+          <div class="col-md-4"><input id="route" class="form-control" placeholder="Rota"></div>
+          <div class="col-md-4"><input id="state" class="form-control" placeholder="Estado"></div>
+          <div class="col-md-4"><input id="city" class="form-control" placeholder="Cidade"></div>
+          <div class="col-12"><input id="client" class="form-control" placeholder="Cliente"></div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+            <button type="submit" class="btn btn-primary">Salvar</button>
+          </div>
+        </form>
+      </div>
+    </div></div>
+  </div>
+
+  <!-- Busca -->
+  <section class="card mb-4">
+    <div class="card-body">
+      <h2 class="h5">Buscar clima</h2>
+      <div class="row g-2 align-items-end">
+        <div class="col-md-6">
+          <label class="form-label">Por nome / descrição</label>
+          <div class="input-group">
+            <input id="searchText" class="form-control" placeholder="Digite para buscar">
+            <button id="btnSearchText" class="btn btn-outline-primary">Buscar</button>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Por coordenadas</label>
+          <div class="input-group">
+            <input id="searchLat" class="form-control" placeholder="Latitude" type="number" step="any">
+            <input id="searchLon" class="form-control" placeholder="Longitude" type="number" step="any">
+            <button id="btnSearchCoords" class="btn btn-outline-primary">Buscar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Lista -->
+  <section class="card mb-4">
+    <div class="card-body">
+      <h2 class="h5">Localidades cadastradas</h2>
+      <div class="table-responsive">
+        <table class="table table-striped table-hover align-middle">
+          <thead class="table-light"><tr>
+            <th>Nome</th><th>Lat</th><th>Lon</th><th>Descrição</th><th>Rota</th>
+            <th>Estado</th><th>Cidade</th><th>Cliente</th><th>Ações</th>
+          </tr></thead>
+          <tbody id="locationsTable"></tbody>
+        </table>
+      </div>
+      <small class="text-muted">↳ clique sobre a linha para ver o clima</small>
+    </div>
+  </section>
+
+  <!-- Botões -->
+  <div class="text-end mb-2">
+    <button class="btn btn-outline-success" id="btnAllForecasts">Mostrar previsão de todas</button>
+  </div>
+  <div class="row mb-3">
+    <div class="col-md-8">
+      <select id="selectLocation" class="form-select">
+        <option value="">Selecione uma localidade</option>
+      </select>
+    </div>
+    <div class="col-md-4 text-end">
+      <button class="btn btn-outline-primary" id="btnSingleForecast">Mostrar previsão da localidade</button>
+    </div>
+  </div>
+
+  <!-- Previsões -->
+  <section class="card mb-4">
+    <div class="card-body">
+      <h2 class="h5">Clima atual &amp; previsão semanal</h2>
+      <div id="multiForecasts" class="row g-4"></div>
+    </div>
+  </section>
+
+</div>
+
+<script>
+const DEFAULT = { lat: -17.79212, lon: -50.91912, label: 'Rio Verde – padrão' };
+const STORAGE_KEY = 'localidades';
+let locations = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+if (locations.length === 0) promptImport();
+function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify(locations)); }
+
+function promptImport() {
+  const input = Object.assign(document.createElement('input'), { type:'file', accept:'.json,application/json' });
+  input.onchange = async ev => {
+    const file = ev.target.files[0];
+    if (!file) return;
+    try {
+      locations = JSON.parse(await file.text());
+      save(); renderTable();
+    } catch { alert('Arquivo inválido.'); }
+  };
+  input.click();
+}
+
+const $ = id => document.getElementById(id);
+const get = id => $(id).value.trim();
+
+$('locationForm').addEventListener('submit', e => {
+  e.preventDefault();
+  locations.push({
+    name: get('name'),
+    latitude: +get('latitude'),
+    longitude: +get('longitude'),
+    description: get('description'),
+    route: get('route'),
+    state: get('state'),
+    city: get('city'),
+    client: get('client')
+  });
+  save(); renderTable();
+  e.target.reset();
+  bootstrap.Modal.getInstance($('#cadastroModal')).hide();
+});
+
+function renderTable() {
+  const tbody = $('locationsTable');
+  tbody.innerHTML = '';
+  locations.forEach((l, i) => tbody.insertAdjacentHTML('beforeend', `
+    <tr data-idx="${i}">
+      <td>${l.name}</td><td>${l.latitude}</td><td>${l.longitude}</td>
+      <td>${l.description}</td><td>${l.route}</td><td>${l.state}</td>
+      <td>${l.city}</td><td>${l.client}</td>
+      <td><button class="btn btn-sm btn-danger" data-i="${i}">🗑️</button></td>
+    </tr>`));
+  renderLocationSelect();
+}
+
+function renderLocationSelect() {
+  const select = $('selectLocation');
+  select.innerHTML = '<option value="">Selecione uma localidade</option>';
+  locations.forEach((loc, i) => {
+    const opt = document.createElement('option');
+    opt.value = i;
+    opt.textContent = `${loc.name} (${loc.city || ''})`;
+    select.appendChild(opt);
+  });
+}
+
+$('locationsTable').addEventListener('click', e => {
+  const del = e.target.closest('button[data-i]');
+  if (del) { locations.splice(+del.dataset.i, 1); save(); renderTable(); return; }
+  const row = e.target.closest('tr[data-idx]');
+  if (row) {
+    const l = locations[+row.dataset.idx];
+    fetchWeather(l.latitude, l.longitude, l.name);
+  }
+});
+
+const API_URL = (lat, lon) =>
+  `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
+  `&daily=temperature_2m_max,temperature_2m_min,weathercode,precipitation_probability_max` +
+  `&forecast_days=7&current_weather=true&timezone=America%2FSao_Paulo`;
+
+const mdi = n => `https://api.iconify.design/mdi/${n}.svg?color=%230056d2`;
+const iconForCode = c =>
+  c === 0 ? mdi('weather-sunny') :
+  [1, 2].includes(c) ? mdi('weather-partly-cloudy') :
+  c === 3 ? mdi('weather-cloudy') :
+  [45, 48].includes(c) ? mdi('weather-fog') :
+  c <= 57 ? mdi('weather-rainy') :
+  c <= 67 ? mdi('weather-pouring') :
+  c <= 77 ? mdi('weather-snowy') :
+  c <= 82 ? mdi('weather-rainy') :
+  c >= 95 ? mdi('weather-lightning') :
+  mdi('weather-cloudy');
+
+async function fetchWeather(lat, lon, label) {
+  try {
+    const data = await (await fetch(API_URL(lat, lon))).json();
+    renderWeekly(data, label);
+  } catch (e) {
+    console.error(e); alert('Erro ao buscar previsão.');
+  }
+}
+
+function renderWeekly(data, label) {
+  $('multiForecasts').innerHTML = createForecastCard(label, data);
+}
+
+function createForecastCard(label, data) {
+  let forecastDays = '';
+  data.daily.time.forEach((d, i) => {
+    const dia = new Date(d).toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit' });
+    forecastDays += `
+      <div class="forecast-card border rounded text-center bg-light p-2">
+        <div class="text-primary small">💧 ${data.daily.precipitation_probability_max[i]}%</div>
+        <h6 class="small mb-1">${dia}</h6>
+        <img src="${iconForCode(data.daily.weathercode[i])}" class="weather-icon mb-1" alt="">
+        <div class="small">Máx ${data.daily.temperature_2m_max[i]}°C</div>
+        <div class="small text-muted">Min ${data.daily.temperature_2m_min[i]}°C</div>
+      </div>`;
+  });
+  return `
+    <div class="col-12">
+      <div class="card shadow-sm">
+        <div class="card-header d-flex align-items-center gap-2 small">
+          <img src="${iconForCode(data.current_weather.weathercode)}" class="weather-icon" alt="">
+          <strong>${label}</strong> — ${data.current_weather.temperature}°C
+        </div>
+        <div class="card-body py-2 px-3">
+          <div class="forecast-row">${forecastDays}</div>
+        </div>
+      </div>
+    </div>`;
+}
+
+async function renderAllForecasts() {
+  const container = $('multiForecasts');
+  container.innerHTML = '';
+  for (const l of locations) {
+    try {
+      const data = await (await fetch(API_URL(l.latitude, l.longitude))).json();
+      const forecastHTML = createForecastCard(l.name, data);
+      container.insertAdjacentHTML('beforeend', forecastHTML);
+    } catch (e) {
+      console.warn(`Erro ao buscar previsão para ${l.name}`, e);
+    }
+  }
+}
+
+$('btnSearchText').onclick = () => {
+  const q = $('searchText').value.toLowerCase().trim();
+  if (!q) { showDefault(); return; }
+  const l = locations.find(l => l.name.toLowerCase().includes(q) || l.description.toLowerCase().includes(q));
+  l ? fetchWeather(l.latitude, l.longitude, l.name) : alert('Localidade não encontrada.');
+};
+
+$('btnSearchCoords').onclick = () => {
+  const latStr = $('searchLat').value.trim(), lonStr = $('searchLon').value.trim();
+  if (!latStr && !lonStr) { showDefault(); return; }
+  const lat = +latStr, lon = +lonStr;
+  if (isNaN(lat) || isNaN(lon)) { alert('Informe coordenadas válidas.'); return; }
+  fetchWeather(lat, lon, `Coordenadas (${lat}, ${lon})`);
+};
+
+$('btnAllForecasts').onclick = () => { renderAllForecasts(); };
+
+$('btnSingleForecast').onclick = () => {
+  const selectedIdx = $('selectLocation').value;
+  if (selectedIdx === '') {
+    alert('Selecione uma localidade para exibir a previsão.');
+    return;
+  }
+  const loc = locations[selectedIdx];
+  if (loc) fetchWeather(loc.latitude, loc.longitude, loc.name);
+};
+
+function showDefault() {
+  fetchWeather(DEFAULT.lat, DEFAULT.lon, DEFAULT.label);
+}
+
+renderTable();
+showDefault();
+</script>
+</body>
+</html>
